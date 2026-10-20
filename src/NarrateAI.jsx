@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+// ─── CONSTANTS ──────────────────────────────────────────────────────────
 const EMOTION_PARAMS = {
   neutral:   { pitch: 1.0,  rate: 1.0,  volume: 1.0  },
   happy:     { pitch: 1.2,  rate: 1.1,  volume: 1.0  },
@@ -33,7 +33,7 @@ const SAMPLE_STORY = `Frodo looked up at Gandalf with wide eyes. "I can't do thi
 
 Gandalf knelt beside him, his voice low and firm. "That is precisely why you were chosen. Not because you are strong, but because you are good."
 
-Sam rushed to his master's side, breathless from running. "Mr. Frodo! I've been looking everywhere for you!" He grabbed Frodo's hand tightly. "Whatever happens, I'm coming with you. You're not alone in this."
+Sam rushed to his master's side, breathless from running. "Mr. Frodo! I've been looking everywhere for you!" He grabbed Frodo's hand tightly. "Whatever happens, I'm coming with you. You're not alo[...]
 
 Frodo felt a warmth spread through him despite the cold mountain air. He looked at his dearest friend and managed a small smile. "You always find me, Sam."
 
@@ -45,16 +45,16 @@ Legolas tilted his head, his elven eyes scanning the treeline. "He is right. I c
 
 Gimli hefted his axe with a grunt. "Let them come. I've not had a decent fight since Moria." He looked at the others and added, more quietly, "Though I suppose running is also acceptable."`;
 
-const SYSTEM_PROMPT = `You are an expert literary analyst and audiobook director. Your job is to parse story text and extract structured dialogue data for an AI-powered multi-voice audiobook engine called NarrateAI.
+const SYSTEM_PROMPT = `You are an expert literary analyst and audiobook director. Your job is to parse story text and extract structured dialogue data for an AI-powered multi-voice audiobook engin[...]
 
 RULES:
 - Break the story into individual lines/sentences — each becomes one audio unit.
 - For narration (non-dialogue), set speaker to "Narrator".
 - Identify ALL unique speaking characters accurately.
-- IF A CHARACTER IS THINKING (inner monologue, silent realization, or unspoken thoughts), set the "speaker" to that character (NOT "Narrator") and set "isThought" to true. For spoken dialogue or regular narrator text, set "isThought" to false.
+- IF A CHARACTER IS THINKING (inner monologue, silent realization, or unspoken thoughts), set the "speaker" to that character (NOT "Narrator") and set "isThought" to true. For spoken dialogue or r[...]
 - Choose emotion from ONLY this list: neutral, happy, angry, sad, fearful, excited, surprised.
-- IMPORTANT: AVOID using "neutral" if there is any emotional undertone in the text — lean towards the active emotion (e.g. if a character is whispering in fear, use "fearful"; if welcoming, use "happy").
-- persona: 4-6 descriptive words about the character (e.g. "wise elderly masculine gruff calm" or "energetic young feminine high-pitched fast"). Capture gender, age, vocal traits, and personality to help the voice assignment engine.
+- IMPORTANT: AVOID using "neutral" if there is any emotional undertone in the text — lean towards the active emotion (e.g. if a character is whispering in fear, use "fearful"; if welcoming, use [...]
+- persona: 4-6 descriptive words about the character (e.g. "wise elderly masculine gruff calm" or "energetic young feminine high-pitched fast"). Capture gender, age, vocal traits, and personality [...]
 - voiceProfile pitch: between 0.6 and 1.8 (1.0 = normal, higher = lighter/higher voice).
 - voiceProfile rate: between 0.8 and 1.3 (1.0 = normal speed).
 - Make voice profiles VERY distinctly different between characters.
@@ -89,6 +89,13 @@ OUTPUT FORMAT:
 ]`;
 
 const NARRATION_WORDS_PER_MINUTE = 140;
+
+const KEYBOARD_SHORTCUTS = [
+  { keys: "Space", label: "Play / Pause", description: "Start or pause narration." },
+  { keys: "R", label: "Reset", description: "Stop narration and reset playback using the app's existing behavior." },
+  { keys: "←", label: "Previous Line", description: "Navigate to the previous story line." },
+  { keys: "→", label: "Next Line", description: "Navigate to the next story line." },
+];
 
 // ─── HELPER FOR ROBUST JSON EXTRACTION ────────────────────────────────────────
 function cleanAndParseJSON(rawText) {
@@ -221,20 +228,20 @@ function formatNarrationDuration(wordCount) {
 function deduplicateSpeakers(parsedLines) {
   const speakers = Array.from(new Set(parsedLines.map(l => l.speaker))).filter(s => s !== "Narrator");
   const aliasMap = {};
-  
+
   for (let i = 0; i < speakers.length; i++) {
     for (let j = i + 1; j < speakers.length; j++) {
       const s1 = speakers[i];
       const s2 = speakers[j];
-      
+
       const name1 = s1.toLowerCase();
       const name2 = s2.toLowerCase();
-      
+
       const words1 = name1.split(/\s+/).filter(w => !["mr", "mrs", "ms", "lord", "lady", "sir"].includes(w));
       const words2 = name2.split(/\s+/).filter(w => !["mr", "mrs", "ms", "lord", "lady", "sir"].includes(w));
-      
+
       const hasOverlap = words1.some(w => words2.includes(w) && w.length > 2);
-      
+
       if (name1.includes(name2) || name2.includes(name1) || hasOverlap) {
         const primary = s1.length <= s2.length ? s1 : s2;
         const alias = s1.length > s2.length ? s1 : s2;
@@ -242,7 +249,7 @@ function deduplicateSpeakers(parsedLines) {
       }
     }
   }
-  
+
   return parsedLines.map(line => {
     if (aliasMap[line.speaker]) {
       return { ...line, speaker: aliasMap[line.speaker] };
@@ -253,9 +260,9 @@ function deduplicateSpeakers(parsedLines) {
 
 // ─── INDIVIDUAL GROQ ATTEMPT ──────────────────────────────────────────────────
 async function callGroqWithModel(apiKey, storyText, model, retryPromptSuffix = "", maxTokens = 4096) {
-  const url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)";
+  const url = "https://api.groq.com/openai/v1/chat/completions";
 
-  const userContent = retryPromptSuffix 
+  const userContent = retryPromptSuffix
     ? `Analyze this story:\n\n${storyText}\n\n${retryPromptSuffix}`
     : `Analyze this story:\n\n${storyText}`;
 
@@ -316,7 +323,7 @@ async function callGroqWithModel(apiKey, storyText, model, retryPromptSuffix = "
 // ─── DYNAMIC GROQ MODEL DISCOVERY ─────────────────────────────────────────────
 async function fetchActiveGroqModels(apiKey) {
   try {
-    const res = await fetch("[https://api.groq.com/openai/v1/models](https://api.groq.com/openai/v1/models)", {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
       headers: { "Authorization": `Bearer ${apiKey}` },
     });
     if (!res.ok) return null;
@@ -524,7 +531,7 @@ function isProblematicVoice(voice) {
 
 function scoreVoice(voice, traits) {
   if (isProblematicVoice(voice)) return -1000;
-  
+
   const name = (voice.name + " " + voice.lang).toLowerCase();
   let score = 0;
 
@@ -538,8 +545,8 @@ function scoreVoice(voice, traits) {
   if (voice.lang === "en-GB")      score += 3;
   if (voice.lang === "en-AU")      score += 2;
 
-  const femaleNameHints = ["female","woman","fiona","samantha","karen","victoria","moira","tessa","veena","zira","susan","emily","heather","hazel","ava","allison","kate","serena","nicky","aria","jenny","michelle","monica","sonia","libby","maisie","clara","natasha","isabelle"];
-  const maleNameHints   = ["male","man","daniel","alex","fred","lee","rishi","tom","thomas","arthur","oliver","george","aaron","james","gordon","bruce","junior","guy","ryan","brian","andrew","eric","jacob","jason","tony","william","elliot","liam","noah"];
+  const femaleNameHints = ["female","woman","fiona","samantha","karen","victoria","moira","tessa","veena","zira","susan","emily","heather","hazel","ava","allison","kate","serena","nicky","aria","jenny","aria","selena","maya","zoe","amanda","michelle","linda","audrey","cora"]; 
+  const maleNameHints   = ["male","man","daniel","alex","fred","lee","rishi","tom","thomas","arthur","oliver","george","aaron","james","gordon","bruce","junior","guy","ryan","brian","andrew","eric","michael","mark","david","paul","john","sam","henry"]; 
   const looksLikeFemale = femaleNameHints.some(h => name.includes(h));
   const looksLikeMale   = maleNameHints.some(h => name.includes(h));
   if (traits.isFemale && looksLikeFemale) score += 20;
@@ -577,20 +584,20 @@ function resolveSpeechVoice(assignedVoiceData, voicePool) {
 
 function assignVoices(characters, availableVoices) {
   const safeVoices = availableVoices.filter(v => !isProblematicVoice(v));
-  
+
   const qualityPool = safeVoices.filter(v => {
     const name = v.name.toLowerCase();
-    return v.lang.startsWith("en") && 
+    return v.lang.startsWith("en") &&
            (name.includes("online") || name.includes("neural") || name.includes("natural"));
   });
-  
+
   const englishPool = safeVoices.filter(v => v.lang.startsWith("en"));
   const pool = qualityPool.length > 0 ? qualityPool : (englishPool.length > 0 ? englishPool : safeVoices);
-  
+
   if (pool.length === 0) return {};
 
   const assignments = {};
-  const usedNames   = new Set();
+  const usedNames = new Set();
 
   const sorted = [...characters].sort((a, b) =>
     a.speaker === "Narrator" ? -1 : b.speaker === "Narrator" ? 1 : 0
@@ -614,7 +621,7 @@ function assignVoices(characters, availableVoices) {
   return assignments;
 }
 
-// ─── UTILITIES ────────────────────────────────────────────────────────────────
+// ─── UTILITIES ─────────────────────────────────────────────────────────────
 function buildColorMap(lines) {
   const map = {};
   let idx = 0;
@@ -628,7 +635,7 @@ function buildColorMap(lines) {
   return map;
 }
 
-// ─── STYLES ───────────────────────────────────────────────────────────────────
+// ─── STYLES ───────────────────────────────────────────────────────────────
 const S = {
   page: {
     minHeight: "100vh",
@@ -788,7 +795,7 @@ const S = {
   },
 };
 
-// ─── COMPONENTS ──────────────────────────────────────────────────────────────
+// ─── COMPONENTS ─────────────────────────────────────────────────────────────
 function ApiKeyPanel({ apiKey, onKeyChange }) {
   const [show, setShow] = useState(false);
   return (
@@ -825,9 +832,9 @@ function ApiKeyPanel({ apiKey, onKeyChange }) {
       {!apiKey && (
         <div style={{ fontSize: "12px", color: "#64748b", marginTop: "8px", lineHeight: 1.6 }}>
           Get a free API key →{" "}
-          <a href="[https://console.groq.com/keys](https://console.groq.com/keys)" target="_blank" rel="noreferrer"
+          <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer"
             style={{ color: "#6366f1", textDecoration: "none", fontWeight: 600 }}>
-            [console.groq.com/keys](https://console.groq.com/keys)
+            console.groq.com/keys
           </a>
           {" "}— no credit card needed. Very generous free limits.
         </div>
@@ -895,7 +902,7 @@ function VoiceQualityBanner({ availableVoices }) {
           Edge is free and already on your Windows PC.
         </div>
         <a
-          href="microsoft-edge:[https://narrate-ai-gamma.vercel.app/](https://narrate-ai-gamma.vercel.app/)"
+          href="https://narrate-ai-gamma.vercel.app/"
           style={{
             display: "inline-block", marginTop: "8px",
             padding: "6px 14px", borderRadius: "8px",
@@ -921,7 +928,7 @@ function CharacterPanel({ characters, colorMap, voiceAssignments }) {
   return (
     <div style={{ marginBottom: "20px" }}>
       <span style={S.label}>🎭 Voices Panel</span>
-      
+
       {expandedChar && (
         <div style={{
           marginBottom: "20px",
@@ -947,7 +954,7 @@ function CharacterPanel({ characters, colorMap, voiceAssignments }) {
                   {expandedChar.speaker}
                 </h3>
               </div>
-              
+
               <p style={{
                 fontSize: "14px", lineHeight: 1.9, color: "#cbd5e1", margin: 0,
                 marginBottom: "16px",
@@ -967,7 +974,7 @@ function CharacterPanel({ characters, colorMap, voiceAssignments }) {
                 <div>{voiceAssignments[expandedChar.speaker]?.name || "Default System Voice"}</div>
               </div>
             </div>
-            
+
             <button
               onClick={() => setExpandedChar(null)}
               style={{
@@ -1004,7 +1011,7 @@ function CharacterPanel({ characters, colorMap, voiceAssignments }) {
         {characters.map(char => {
           const color = colorMap[char.speaker] || NARRATOR_COLOR;
           const isExpanded = expandedChar?.speaker === char.speaker;
-          
+
           return (
             <button
               key={char.speaker}
@@ -1019,7 +1026,7 @@ function CharacterPanel({ characters, colorMap, voiceAssignments }) {
                 border: isExpanded ? `2px solid ${color.border}` : "1px solid transparent",
                 minWidth: "fit-content",
                 flexShrink: 0,
-                boxShadow: isExpanded 
+                boxShadow: isExpanded
                   ? `0 0 24px ${color.dot}50, inset 0 0 16px ${color.dot}15`
                   : `0 4px 12px rgba(0, 0, 0, 0.2)`,
                 transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
@@ -1050,7 +1057,7 @@ function CharacterPanel({ characters, colorMap, voiceAssignments }) {
                 flexShrink: 0,
                 transition: "all 0.3s",
               }} />
-              
+
               <div style={{
                 fontSize: isExpanded ? "14px" : "13px",
                 fontWeight: 700,
@@ -1268,30 +1275,35 @@ function PlaybackControls({ isPlaying, currentIndex, total, onPlay, onPause, onS
   );
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ─── MAIN APP ─────────────────────────────────────────────────────────────
 export default function NarrateAI() {
-  const [apiKey, setApiKey]                     = useState("");
-  const [storyText, setStoryText]               = useState("");
-  const [parsedLines, setParsedLines]           = useState([]);
-  const [characters, setCharacters]             = useState([]);
-  const [colorMap, setColorMap]                 = useState({});
+  const [apiKey, setApiKey] = useState("");
+  const [storyText, setStoryText] = useState("");
+  const [parsedLines, setParsedLines] = useState([]);
+  const [characters, setCharacters] = useState([]);
+  const [colorMap, setColorMap] = useState({});
   const [voiceAssignments, setVoiceAssignments] = useState({});
-  const [availableVoices, setAvailableVoices]   = useState([]);
-  const [isLoading, setIsLoading]               = useState(false);
-  const [isPlaying, setIsPlaying]               = useState(false);
-  const [currentIndex, setCurrentIndex]         = useState(0);
-  const [error, setError]                       = useState("");
-  const [speed, setSpeed]                       = useState(1.0);
-  const [view, setView]                         = useState("input");
-  const [speechSupported]                       = useState(() => typeof window !== "undefined" && "speechSynthesis" in window && !!window.speechSynthesis);
-  const [showFinished, setShowFinished]         = useState(false);
-  const [loadingStep, setLoadingStep]           = useState("");
-  const [chunkProgress, setChunkProgress]       = useState(null);
-  
-  const [history, setHistory]                   = useState([]);
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [error, setError] = useState("");
+  const [speed, setSpeed] = useState(1.0);
+  const [view, setView] = useState("input");
+  const [speechSupported] = useState(() => typeof window !== "undefined" && "speechSynthesis" in window && !!window.speechSynthesis);
+  const [showFinished, setShowFinished] = useState(false);
+  const [loadingStep, setLoadingStep] = useState("");
+  const [chunkProgress, setChunkProgress] = useState(null);
+
+  const [history, setHistory] = useState([]);
   const [showWritingPanel, setShowWritingPanel] = useState(true);
   const [showPlaybackPanel, setShowPlaybackPanel] = useState(true);
-  
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  const helpButtonRef = useRef(null);
+  const helpDialogRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -1327,26 +1339,23 @@ export default function NarrateAI() {
     }
   }, []);
 
-  const synthRef            = useRef(typeof window !== "undefined" ? window.speechSynthesis : null);
+  const synthRef = useRef(typeof window !== "undefined" ? window.speechSynthesis : null);
   const watchdogIntervalRef = useRef(null);
-  const indexRef            = useRef(0);
-  const playingRef          = useRef(false);
-  const speedRef            = useRef(1.0);
-  const linesRef            = useRef([]);
-  const voiceRef            = useRef({});
-  const generationRef       = useRef(0);
+  const indexRef = useRef(0);
+  const playingRef = useRef(false);
+  const speedRef = useRef(1.0);
+  const linesRef = useRef([]);
+  const voiceRef = useRef({});
+  const generationRef = useRef(0);
 
-  // Persist API key to localStorage
   useEffect(() => {
     if (apiKey) localStorage.setItem("narrateai_groq_key", apiKey);
   }, [apiKey]);
 
-  // Persist view to localStorage
   useEffect(() => {
     localStorage.setItem("narrateai_view", view);
   }, [view]);
 
-  // ── HISTORY HELPERS ──
   function saveStoryToHistory(text, parsed, chars, colors, voiceAssigns) {
     if (!text.trim()) return;
     const title = text.trim().substring(0, 45) + (text.trim().length > 45 ? "..." : "");
@@ -1382,7 +1391,7 @@ export default function NarrateAI() {
     setCurrentIndex(0);
     indexRef.current = 0;
     setView("story");
-    
+
     localStorage.setItem("narrateai_story_text", item.storyText);
     localStorage.setItem("narrateai_parsed_lines", JSON.stringify(item.parsedLines));
     localStorage.setItem("narrateai_characters", JSON.stringify(item.characters));
@@ -1401,13 +1410,108 @@ export default function NarrateAI() {
     };
   }, []);
 
-  // Keyboard controls
+  const openShortcutsHelp = useCallback(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setIsHelpOpen(true);
+  }, []);
+
+  const closeShortcutsHelp = useCallback(() => {
+    setIsHelpOpen(false);
+    requestAnimationFrame(() => {
+      if (previousFocusRef.current && typeof previousFocusRef.current.focus === "function") {
+        previousFocusRef.current.focus();
+      } else if (helpButtonRef.current) {
+        helpButtonRef.current.focus();
+      }
+    });
+  }, []);
+
   useEffect(() => {
-    function handleKeyDown(e) {
-      if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
+    if (!isHelpOpen) return;
+
+    const focusDialog = () => {
+      const dialog = helpDialogRef.current;
+      if (!dialog) return;
+      const focusable = dialog.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+      const first = focusable[0];
+      if (first) {
+        first.focus();
+      } else {
+        dialog.focus();
+      }
+    };
+
+    requestAnimationFrame(focusDialog);
+  }, [isHelpOpen]);
+
+  useEffect(() => {
+    if (!isHelpOpen) return;
+
+    function handleTabLock(event) {
+      if (event.key !== "Tab") return;
+      const dialog = helpDialogRef.current;
+      if (!dialog) return;
+      const focusable = dialog.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
         return;
       }
-      
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    window.addEventListener("keydown", handleTabLock);
+    return () => window.removeEventListener("keydown", handleTabLock);
+  }, [isHelpOpen]);
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      const activeElement = document.activeElement;
+      const isEditableTarget =
+        (e.target instanceof HTMLElement && (
+          e.target.tagName === "INPUT" ||
+          e.target.tagName === "TEXTAREA" ||
+          e.target.tagName === "SELECT" ||
+          e.target.isContentEditable
+        )) ||
+        (activeElement instanceof HTMLElement && (
+          activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.tagName === "SELECT" ||
+          activeElement.isContentEditable
+        ));
+
+      if (isEditableTarget) {
+        if (e.key === "Escape" && isHelpOpen) {
+          e.preventDefault();
+          closeShortcutsHelp();
+        }
+        return;
+      }
+
+      if (isHelpOpen) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeShortcutsHelp();
+        }
+        return;
+      }
+
+      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+        e.preventDefault();
+        openShortcutsHelp();
+        return;
+      }
+
       if (e.code === "Space") {
         e.preventDefault();
         if (playingRef.current) {
@@ -1426,12 +1530,11 @@ export default function NarrateAI() {
         skipBackward();
       }
     }
-    
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentIndex, parsedLines]);
+  }, [isHelpOpen, currentIndex, parsedLines, closeShortcutsHelp, openShortcutsHelp]);
 
-  // Load browser voices
   useEffect(() => {
     if (!speechSupported) return;
     function loadVoices() {
@@ -1473,7 +1576,6 @@ export default function NarrateAI() {
     }
   }, [availableVoices, voiceAssignments]);
 
-  // ── ANALYSE WITH GROQ ──
   async function analyzeStory() {
     if (!storyText.trim() || isLoading) return;
     if (!apiKey.trim()) {
@@ -1549,7 +1651,7 @@ export default function NarrateAI() {
     } catch (err) {
       console.error(err);
       if (err.message?.includes("Invalid API Key") || err.message?.includes("401") || err.message?.includes("invalid_api_key")) {
-        setError("Invalid API key. Please double-check your Groq API key at [console.groq.com/keys](https://console.groq.com/keys)");
+        setError("Invalid API key. Please double-check your Groq API key at https://console.groq.com/keys");
       } else {
         setError(`Analysis failed: ${err.message || "Please check your story and try again."}`);
       }
@@ -1559,7 +1661,6 @@ export default function NarrateAI() {
     }
   }
 
-  // ── PLAYBACK ENGINE ──
   const playLine = useCallback((index) => {
     const lines = linesRef.current;
     const voices = voiceRef.current;
@@ -1624,7 +1725,7 @@ export default function NarrateAI() {
     };
 
     synthRef.current.speak(utt);
-  }, []);
+  }, [playLine]);
 
   function startPlayback(fromIndex = 0) {
     if (!synthRef.current) return;
@@ -1712,10 +1813,8 @@ export default function NarrateAI() {
   const storyCharacterCount = storyText.length;
   const estimatedNarrationDuration = formatNarrationDuration(storyWordCount);
 
-  // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <div style={S.page}>
-      {/* HEADER */}
       <div style={S.header}>
         <div style={S.logo}>
           <span style={{ fontSize: "22px", filter: "drop-shadow(0 0 8px rgba(99,102,241,0.8))" }}>🎙</span>
@@ -1730,43 +1829,69 @@ export default function NarrateAI() {
           }}>GROQ · GPT-OSS 120B</span>
         </div>
 
-        {hasStory && (
-          <div style={{ display: "flex", gap: "8px", background: "rgba(255,255,255,0.05)", borderRadius: "10px", padding: "5px", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <button 
-              onClick={() => setShowWritingPanel(!showWritingPanel)}
-              title="Toggle Story Writer"
-              style={{
-                padding: "6px 16px", borderRadius: "8px", border: "none",
-                fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                background: showWritingPanel ? "rgba(99,102,241,0.8)" : "transparent",
-                color: showWritingPanel ? "#fff" : "#64748b",
-                transition: "all 0.2s",
-                display: "flex", alignItems: "center", gap: "6px",
-              }}>
-              ✏️ {showWritingPanel ? "Hide" : "Show"} Writer
-            </button>
-            <button 
-              onClick={() => setShowPlaybackPanel(!showPlaybackPanel)}
-              title="Toggle Playback"
-              style={{
-                padding: "6px 16px", borderRadius: "8px", border: "none",
-                fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                background: showPlaybackPanel ? "rgba(99,102,241,0.8)" : "transparent",
-                color: showPlaybackPanel ? "#fff" : "#64748b",
-                transition: "all 0.2s",
-                display: "flex", alignItems: "center", gap: "6px",
-              }}>
-              ▶️ {showPlaybackPanel ? "Hide" : "Show"} Playback
-            </button>
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginLeft: "auto", flexShrink: 0 }}>
+          <button
+            ref={helpButtonRef}
+            type="button"
+            onClick={openShortcutsHelp}
+            aria-label="Show keyboard shortcuts"
+            title="Show keyboard shortcuts"
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "10px",
+              border: "1px solid rgba(99,102,241,0.35)",
+              background: "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.18))",
+              color: "#c4b5fd",
+              fontWeight: 800,
+              fontSize: "16px",
+              cursor: "pointer",
+              boxShadow: "0 0 0 1px rgba(99,102,241,0.2)",
+              flexShrink: 0,
+            }}
+          >
+            ?
+          </button>
 
-        <div style={{ fontSize: "12px", color: "#475569", fontWeight: 500 }}>
-          {hasStory ? `${parsedLines.length} lines · ${characters.length} chars` : ""}
+          {hasStory && (
+            <div style={{ display: "flex", gap: "8px", background: "rgba(255,255,255,0.05)", borderRadius: "10px", padding: "5px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <button
+                type="button"
+                onClick={() => setShowWritingPanel(!showWritingPanel)}
+                title="Toggle Story Writer"
+                style={{
+                  padding: "6px 16px", borderRadius: "8px", border: "none",
+                  fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  background: showWritingPanel ? "rgba(99,102,241,0.8)" : "transparent",
+                  color: showWritingPanel ? "#fff" : "#64748b",
+                  transition: "all 0.2s",
+                  display: "flex", alignItems: "center", gap: "6px",
+                }}>
+                ✏️ {showWritingPanel ? "Hide" : "Show"} Writer
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPlaybackPanel(!showPlaybackPanel)}
+                title="Toggle Playback"
+                style={{
+                  padding: "6px 16px", borderRadius: "8px", border: "none",
+                  fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  background: showPlaybackPanel ? "rgba(99,102,241,0.8)" : "transparent",
+                  color: showPlaybackPanel ? "#fff" : "#64748b",
+                  transition: "all 0.2s",
+                  display: "flex", alignItems: "center", gap: "6px",
+                }}>
+                ▶️ {showPlaybackPanel ? "Hide" : "Show"} Playback
+              </button>
+            </div>
+          )}
+
+          <div style={{ fontSize: "12px", color: "#475569", fontWeight: 500 }}>
+            {hasStory ? `${parsedLines.length} lines · ${characters.length} chars` : "Ready"}
+          </div>
         </div>
       </div>
 
-      {/* MAIN */}
       <div style={{
         ...S.main,
         maxWidth: "100%",
@@ -1774,24 +1899,20 @@ export default function NarrateAI() {
       }}>
         {!speechSupported && (
           <div style={S.errorBox}>
-            ⚠️ <strong>Text-to-Speech Not Supported:</strong> Your browser does not support the Web Speech API or it is currently disabled. Please open this app in Google Chrome or Microsoft Edge to enable voice playback.
+            ⚠️ <strong>Text-to-Speech Not Supported:</strong> Your browser does not support the Web Speech API or it is currently disabled. Please open this app in Google Chrome or Microsoft Edge.
           </div>
         )}
 
         <div style={{
           display: "grid",
-          gridTemplateColumns: showWritingPanel && showPlaybackPanel 
-            ? "1fr 1fr" 
+          gridTemplateColumns: showWritingPanel && showPlaybackPanel
+            ? "1fr 1fr"
             : (showPlaybackPanel ? "1fr" : (showWritingPanel ? "1fr" : "1fr")),
           gap: "32px",
           alignItems: "start",
         }}>
-          
-          {/* LEFT PANEL: INPUT VIEW */}
           {showWritingPanel && (
-            <div className="left-panel" style={{
-              minHeight: "0",
-            }}>
+            <div className="left-panel" style={{ minHeight: "0" }}>
               <div style={{
                 display: "flex", alignItems: "center", gap: "10px",
                 marginBottom: "18px", paddingBottom: "12px",
@@ -1823,6 +1944,7 @@ export default function NarrateAI() {
 
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
+                  type="button"
                   onClick={analyzeStory}
                   disabled={!canAnalyze}
                   style={canAnalyze ? S.btnPrimary : S.btnDisabled}
@@ -1846,7 +1968,7 @@ export default function NarrateAI() {
                 </button>
 
                 {!storyText && (
-                  <button onClick={() => setStoryText(SAMPLE_STORY)} style={S.btnSecondary}>
+                  <button type="button" onClick={() => setStoryText(SAMPLE_STORY)} style={S.btnSecondary}>
                     Sample
                   </button>
                 )}
@@ -1858,11 +1980,8 @@ export default function NarrateAI() {
             </div>
           )}
 
-          {/* RIGHT PANEL: PLAYBACK VIEW */}
           {showPlaybackPanel && (
-            <div className="right-panel" style={{
-              minHeight: "0",
-            }}>
+            <div className="right-panel" style={{ minHeight: "0" }}>
               {hasStory ? (
                 <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "16px" }}>
                   <div style={{
@@ -1878,7 +1997,7 @@ export default function NarrateAI() {
                   </div>
 
                   <VoiceQualityBanner availableVoices={availableVoices} />
-                  
+
                   {showFinished && (
                     <div style={{
                       background: "linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.15) 100%)",
@@ -1895,13 +2014,13 @@ export default function NarrateAI() {
                         You've finished listening to <strong>{parsedLines.length}</strong> lines voiced by <strong>{characters.length}</strong> unique characters.
                       </p>
                       <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-                        <button onClick={() => startPlayback(0)} style={{
+                        <button type="button" onClick={() => startPlayback(0)} style={{
                           padding: "10px 20px", borderRadius: "10px", border: "none",
                           background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", color: "#fff",
                           fontSize: "12px", fontWeight: 700, cursor: "pointer",
                           boxShadow: "0 4px 15px rgba(99,102,241,0.3)",
                         }}>Replay Story</button>
-                        <button onClick={() => { stopPlayback(); setShowWritingPanel(true); }} style={{
+                        <button type="button" onClick={() => { stopPlayback(); setShowWritingPanel(true); }} style={{
                           padding: "10px 20px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)",
                           background: "rgba(255,255,255,0.05)", color: "#94a3b8",
                           fontSize: "12px", fontWeight: 600, cursor: "pointer",
@@ -1915,7 +2034,7 @@ export default function NarrateAI() {
                     colorMap={colorMap}
                     voiceAssignments={voiceAssignments}
                   />
-                  
+
                   <div style={{
                     flex: 1,
                     minHeight: "400px",
@@ -1946,7 +2065,6 @@ export default function NarrateAI() {
         </div>
       </div>
 
-      {/* PLAYBACK CONTROLS */}
       {showPlaybackPanel && hasStory && (
         <PlaybackControls
           isPlaying={isPlaying}
@@ -1963,7 +2081,119 @@ export default function NarrateAI() {
         />
       )}
 
-      {/* Styles & Animation keyframes */}
+      {isHelpOpen && (
+        <div
+          aria-hidden={!isHelpOpen}
+          onClick={closeShortcutsHelp}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(2,6,23,0.78)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            zIndex: 60,
+          }}
+        >
+          <div
+            ref={helpDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="keyboard-shortcuts-title"
+            aria-describedby="keyboard-shortcuts-description"
+            tabIndex={-1}
+            onClick={event => event.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "520px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              background: "linear-gradient(180deg, rgba(15,23,42,0.97), rgba(17,24,39,0.98))",
+              border: "1px solid rgba(129,140,248,0.4)",
+              borderRadius: "20px",
+              boxShadow: "0 30px 80px rgba(15,23,42,0.8), 0 0 0 1px rgba(99,102,241,0.15)",
+              padding: "24px 22px 20px",
+              outline: "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "8px" }}>
+              <div>
+                <div style={{ fontSize: "11px", letterSpacing: "0.16em", textTransform: "uppercase", color: "#a5b4fc", fontWeight: 700 }}>
+                  NarrateAI
+                </div>
+                <h2 id="keyboard-shortcuts-title" style={{ margin: "6px 0 0", fontSize: "26px", color: "#f8fafc", lineHeight: 1.2 }}>
+                  Keyboard shortcuts
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Close keyboard shortcuts help"
+                title="Close keyboard shortcuts help"
+                onClick={closeShortcutsHelp}
+                style={{
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#e2e8f0",
+                  cursor: "pointer",
+                  fontSize: "18px",
+                  flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p id="keyboard-shortcuts-description" style={{ margin: "0 0 18px", fontSize: "14px", lineHeight: 1.7, color: "#cbd5e1" }}>
+              Use these shortcuts while you are focused on the app. The dialog stays open until you close it or press Escape.
+            </p>
+
+            <div style={{ display: "grid", gap: "12px" }}>
+              {KEYBOARD_SHORTCUTS.map(item => (
+                <div key={item.label} style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(96px, 120px) minmax(0, 1fr)",
+                  gap: "12px",
+                  alignItems: "center",
+                  padding: "12px 12px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.025)",
+                }}>
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: "36px",
+                    padding: "6px 10px",
+                    borderRadius: "8px",
+                    background: "linear-gradient(135deg, rgba(99,102,241,0.22), rgba(139,92,246,0.18))",
+                    border: "1px solid rgba(165,180,252,0.4)",
+                    color: "#e0e7ff",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    letterSpacing: "0.04em",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+                  }}>
+                    {item.keys}
+                  </div>
+
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: "14px", color: "#f8fafc", marginBottom: "4px" }}>{item.label}</div>
+                    <div style={{ fontSize: "12px", lineHeight: 1.6, color: "#94a3b8" }}>{item.description}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1971,7 +2201,7 @@ export default function NarrateAI() {
         textarea:focus, input:focus { border-color: rgba(99,102,241,0.6) !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
         button:not(:disabled):hover { filter: brightness(1.1); transform: translateY(-1px); }
         select option { background: #1a1a2e; color: #e2e8f0; }
-        
+
         @media (min-width: 860px) {
           .left-panel { display: block !important; }
           .right-panel { display: block !important; }
